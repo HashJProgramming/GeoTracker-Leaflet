@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPS Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+  <style>
+    #map { height: 100vh; }
+    #input-container { position: absolute; top: 10px; left: 10px; z-index: 1000; }
+  </style>
+</head>
+<body>
+  <div id="input-container">
+    <input type="text" id="destination" placeholder="Enter Destination" />
+    <button onclick="findDestination()">Go</button>
+  </div>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+  <script>
+    let map = L.map('map').setView([0, 0], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+    let userMarker;
+    let routingControl;
+
+    function trackUser() {
+      if (navigator.geolocation) {
+        navigator.geolocation.watchPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            if (!userMarker) {
+              userMarker = L.marker([latitude, longitude]).addTo(map).bindPopup("You are here!");
+            } else {
+              userMarker.setLatLng([latitude, longitude]);
+            }
+            map.setView([latitude, longitude], 13);
+          },
+          (error) => console.error(error),
+          { enableHighAccuracy: true }
+        );
+      } else {
+        alert("Geolocation is not supported by your browser.");
+      }
+    }
+
+
+    function findDestination() {
+      const destination = document.getElementById('destination').value;
+      fetch(`https://nominatim.openstreetmap.org/search?q=${destination}&format=json`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.length > 0) {
+            const { lat, lon } = data[0];
+            L.marker([lat, lon]).addTo(map).bindPopup(`Destination: ${destination}`).openPopup();
+            map.setView([lat, lon], 13);
+
+            if (userMarker) {
+              const userLatLng = userMarker.getLatLng();
+              if (routingControl) {
+                routingControl.remove();
+              }
+              routingControl = L.Routing.control({
+                waypoints: [
+                  L.latLng(userLatLng.lat, userLatLng.lng),
+                  L.latLng(lat, lon)
+                ],
+                routeWhileDragging: true
+              }).addTo(map);
+            }
+          } else {
+            alert("Destination not found!");
+          }
+        })
+        .catch(error => console.error(error));
+    }
+    
+    trackUser();
+
+  </script>
+</body>
+</html>
